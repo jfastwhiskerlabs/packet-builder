@@ -14,100 +14,7 @@ use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
 
-// ===============================
-// Models (replace with your own if you already have them)
-// ===============================
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Endianness {
-    Le,
-    Be,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum ExprNode {
-    NoExpr,
-    UnsignedInteger64Value(u64),
-    Integer64Value(i64),
-    Float64Value(f64),
-    StringValue(String),
-
-    // identifiers and optional index expression (e.g., foo[expr])
-    ValueReference(String, Option<Box<ExprNode>>),
-
-    // function call: name(args...)
-    ActivationRecord(String, Vec<Box<ExprNode>>),
-
-    ParenthesizedExpr(Box<ExprNode>),
-    GuardExpression(Box<ExprNode>, Box<ExprNode>, Box<ExprNode>), // when cond then a otherwise b
-
-    // aggregates: sumof foo / productof bar
-    AggregateSum(String),
-    AggregateProduct(String),
-
-    // arithmetic
-    Plus(Box<ExprNode>, Box<ExprNode>),
-    Minus(Box<ExprNode>, Box<ExprNode>),
-    Mult(Box<ExprNode>, Box<ExprNode>),
-    Div(Box<ExprNode>, Box<ExprNode>),
-    Pow(Box<ExprNode>, Box<ExprNode>),
-
-    // comparisons
-    Gt(Box<ExprNode>, Box<ExprNode>),
-    Gte(Box<ExprNode>, Box<ExprNode>),
-    Lt(Box<ExprNode>, Box<ExprNode>),
-    Lte(Box<ExprNode>, Box<ExprNode>),
-    Equals(Box<ExprNode>, Box<ExprNode>),
-    NotEquals(Box<ExprNode>, Box<ExprNode>),
-
-    // boolean
-    And(Box<ExprNode>, Box<ExprNode>),
-    Or(Box<ExprNode>, Box<ExprNode>),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum TypeNode {
-    Integer8(Option<ExprNode>),
-    UnsignedInteger8(Option<ExprNode>),
-    Integer16(Option<ExprNode>),
-    UnsignedInteger16(Option<ExprNode>),
-    Integer32(Option<ExprNode>),
-    UnsignedInteger32(Option<ExprNode>),
-    Integer64(Option<ExprNode>),
-    UnsignedInteger64(Option<ExprNode>),
-    Float32(Option<ExprNode>),
-    Float64(Option<ExprNode>),
-    MacAddress(Option<ExprNode>),
-    DateTime(Option<ExprNode>),
-    Bytes(Option<ExprNode>), // opaque blob
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct TypeExpr {
-    pub id: String,
-    pub expr: TypeNode,
-    pub endianness: Option<Endianness>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct CalculatedField {
-    pub name: String,
-    pub data_type: String, // textual typename as written (e.g. "uint16")
-    pub expr: Box<ExprNode>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct PacketExpr {
-    pub name: String,
-    pub fields: Vec<TypeExpr>,
-    pub calculated_fields: Vec<CalculatedField>,
-    pub endianness: Option<Endianness>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct PacketExprList {
-    pub packets: Vec<PacketExpr>,
-}
+use crate::models::parsing_models::{CalculatedField, Endianness, ExprNode, PacketExpr, PacketExprList, TypeExpr, TypeNode};
 
 // ===============================
 // Pest Parser
@@ -148,7 +55,6 @@ fn parse_packet(packet: Pair<Rule>) -> PacketExpr {
             Rule::identifier => identifier = detail.as_str().to_string(),
             Rule::endianness => packet_endianness = to_endianness(detail.as_str()),
             Rule::rule_list => {
-                // rule_list -> rule (',' rule)* ','?
                 for rule in detail.into_inner() {
                     if rule.as_rule() != Rule::rule {
                         continue;
@@ -509,7 +415,7 @@ fn parse_aggregate_accessor(parser_rule: Pair<Rule>) -> ExprNode {
 fn parse_direct_value_accessor(parser_rule: Pair<Rule>) -> ExprNode {
     // identifier ~ array_specifier?
     let mut identifier = String::new();
-    let mut array_index_expr: Option<ExprNode> = None;
+    let mut array_index_expr: Option<Box<ExprNode>> = None;
 
     for value in parser_rule.into_inner() {
         match value.as_rule() {
@@ -517,7 +423,7 @@ fn parse_direct_value_accessor(parser_rule: Pair<Rule>) -> ExprNode {
             Rule::array_specifier => {
                 for inner in value.into_inner() {
                     if inner.as_rule() == Rule::expr {
-                        array_index_expr = Some(parse_expr(inner));
+                        array_index_expr = Some(Box::new(parse_expr(inner)));
                     }
                 }
             }
