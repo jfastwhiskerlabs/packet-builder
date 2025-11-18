@@ -78,7 +78,11 @@ keyword = _{
 // Identifiers & numbers
 // ===============================
 // Disallow keywords as identifiers:
-identifier = @{ !keyword ~ (alpha | underscore) ~ (alnum | underscore)* }
+identifier = @{
+    !(keyword ~ !(alnum | underscore))
+    ~ (alpha | underscore)
+    ~ (alnum | underscore)*
+}
 
 // Numbers: decimal, hex (0x...), and binary (0b...)
 numeric_constant = @{
